@@ -32,7 +32,7 @@
       <div class="panel-title">⚙️ API 设置</div>
       <label class="field">
         <span class="field-label">API 地址</span>
-        <input id="cfgUrl" class="inp" type="text" placeholder="例：https://api.openai.com/v1/chat/completions">
+        <input id="cfgUrl" class="inp" type="text" placeholder="例：https://api.openai.com/v1">
       </label>
       <label class="field">
         <span class="field-label">API Key</span>
@@ -44,6 +44,8 @@
       </label>
       <div class="panel-footer">
         <button class="btn btn-primary" id="btnSaveSettings">保存</button>
+        <button class="btn btn-outline btn-sm" id="btnTestApi">测试连接</button>
+        <span id="testStatus" class="test-status"></span>
         <span class="save-ok" id="saveOk"></span>
       </div>
     </div>
@@ -82,7 +84,7 @@
             <span class="result-novel" id="rNovel"></span>
           </div>
           <div class="result-btns">
-            <button class="ghost-btn" id="btnGraph">
+            <button class="ghost-btn" id="btnShowGraph">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               图谱
             </button>
@@ -130,6 +132,6 @@
   </div>
 
 </div><!-- /page -->
-<script src="script.js"></script>
+<script type="module" src="script.js"></script>
 </body>
 </html>

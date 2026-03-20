@@ -1,0 +1,16 @@
+{
+  "name": "browser-extension-novel-search",
+  "version": "1.0.0",
+  "description": "Novel search browser extension with AI query capabilities",
+  "type": "module",
+  "scripts": {
+    "dev": "serve .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0",
+    "jsdom": "^26.0.0",
+    "serve": "^14.2.0"
+  }
+}
