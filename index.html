@@ -3,66 +3,117 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>听书人物查询助手</title>
+    <title>听书人物查询</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="app" id="app">
-      <!-- 标题区 -->
-      <header class="header card">
-        <div class="header__title">听书人物查询助手</div>
-        <div class="header__subtitle">纯本地工具：不读取网页内容，不抓取文本；只用你输入的“小说名 + 人名”去 AI 查询。</div>
+    <!-- 最外层：固定尺寸，相对定位作为设置浮层的锚点 -->
+    <div class="page">
+
+      <!-- Header（不在可滚动区内） -->
+      <header class="header" id="mainHeader">
+        <div class="header-left">
+          <span class="header-icon">📖</span>
+          <div>
+            <div class="header-title">听书人物查询</div>
+            <div class="header-sub">输入小说名＋人名，AI 即时查询</div>
+          </div>
+        </div>
+        <button class="gear-btn" id="settingsToggle" title="API 设置">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </header>
 
-      <!-- 查询区 -->
+      <!-- 设置浮层：绝对定位，不受 .app 的 overflow 裁剪 -->
+      <div class="settings-wrap" id="settingsPanel">
+        <div class="settings-inner">
+          <div class="panel-title">⚙️ API 设置</div>
+          <label class="field">
+            <span class="field-label">API 地址（OpenAI 兼容）</span>
+            <input id="apiUrlInput" class="input" type="text"
+              placeholder="https://api.openai.com/v1/chat/completions" />
+          </label>
+          <label class="field">
+            <span class="field-label">API Key <em class="req">*</em></span>
+            <input id="apiKeyInput" class="input" type="password"
+              placeholder="sk-..." autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="field-label">模型名称</span>
+            <input id="apiModelInput" class="input" type="text"
+              placeholder="gpt-4o-mini / claude-3-haiku / deepseek-chat …" />
+          </label>
+          <div class="settings-foot">
+            <button id="saveSettingsBtn" class="btn btn-primary">保存设置</button>
+            <span id="settingsSaved" class="saved-hint"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 可滚动主体区 -->
+      <div class="app">
+
+      <!-- Query Section -->
       <section class="card">
-        <div class="section-title">AI 查询人物</div>
-
-        <div class="form-grid">
+        <div class="card-title">🔍 查询人物</div>
+        <div class="fields">
           <label class="field">
-            <div class="field__label">小说名（只需输入一次）<span class="required">*</span></div>
-            <input id="novelInput" class="input" type="text" placeholder="例如：诡秘之主" />
+            <span class="field-label">小说名 <em class="req">*</em></span>
+            <input id="novelInput" class="input" type="text" placeholder="例：诡秘之主" />
           </label>
-
           <label class="field">
-            <div class="field__label">人物名<span class="required">*</span></div>
-            <input id="personInput" class="input" type="text" placeholder="例如：克莱恩" />
+            <span class="field-label">人物名 <em class="req">*</em></span>
+            <input id="personInput" class="input" type="text" placeholder="例：克莱恩" />
           </label>
-
           <label class="field">
-            <div class="field__label">片段（可选，用于更精准检索）</div>
-            <textarea
-              id="snippetInput"
-              class="textarea"
-              rows="3"
-              placeholder="可粘贴你听到的关键句/情节片段（可不填）"
-            ></textarea>
+            <span class="field-label">情节片段
+              <span class="optional">（可选，帮助更精准定位）</span>
+            </span>
+            <textarea id="snippetInput" class="textarea" rows="2"
+              placeholder="粘贴你听到的关键句…"></textarea>
           </label>
         </div>
-
-        <div class="row">
-          <button id="queryBtn" class="btn btn-primary" type="button">AI查询人物</button>
-          <div class="status" id="statusText" aria-live="polite"></div>
+        <div class="query-row">
+          <button id="queryBtn" class="btn btn-primary">AI 查询</button>
+          <span class="status-txt" id="statusText"></span>
         </div>
 
-        <div class="result card-soft" id="resultBox">
-          <div class="result__title">结果</div>
-          <div class="result__content muted" id="resultText">暂无结果。请输入小说名与人物名后点击“AI查询人物”。</div>
+        <!-- Result -->
+        <div class="result-box" id="resultBox" style="display:none">
+          <div class="result-head">
+            <div class="result-identity">
+              <span class="result-name" id="resultName"></span>
+              <span class="result-tag" id="resultNovelTag"></span>
+            </div>
+            <button class="copy-btn" id="copyBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              复制
+            </button>
+          </div>
+          <div class="result-fields" id="resultFields"></div>
         </div>
       </section>
 
-      <!-- 历史记录 -->
+      <!-- History Section -->
       <section class="card">
-        <div class="section-title">历史记录（可搜索）</div>
-
-        <div class="row">
-          <input id="historySearchInput" class="input" type="text" placeholder="搜索：小说名 / 人物名（忽略大小写）" />
+        <div class="card-title-row">
+          <div class="card-title">📚 历史记录</div>
+          <div class="hist-actions">
+            <button class="btn btn-sm btn-outline" id="exportBtn">导出</button>
+            <button class="btn btn-sm btn-danger-ghost" id="clearAllBtn">清空</button>
+          </div>
         </div>
-        <div class="list" id="historyList"></div>
+        <input id="historySearchInput" class="input"
+          type="text" placeholder="搜索小说名 / 人物名…" />
+        <div id="historyList" class="hist-list"></div>
       </section>
-    </div>
 
+      </div><!-- /.app -->
+    </div><!-- /.page -->
     <script src="script.js"></script>
   </body>
 </html>
-

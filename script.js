@@ -1,379 +1,427 @@
-// script.js：弹窗逻辑（原生 HTML/CSS/JS，无任何框架）
-// 功能：只输入“小说名（记住一次）+ 人名”，点击按钮后调用 AI 查询 3 行结果并展示；同时本地保存历史记录（可搜索）
-// 说明：纯本地工具，不读取网页内容，不抓文本。
-
+// script.js — 听书人物查询助手 v2
+// 功能：自定义 API Key/地址/模型；5个查询字段；复制/删除/清空/导出历史
 (() => {
-  // ========= localStorage key（持久化，关闭浏览器不丢失） =========
-  const KEY_NOVEL_NAME = "audio_novel_helper__novel_name_v1";
-  const KEY_HISTORY = "audio_novel_helper__history_v1";
 
-  // ========= 已指定并要求“写死”的 AI API 信息（无需用户配置） =========
-  const AI_API_URL = "https://code-api.x-aio.ai/v1/chat/completions";
-  const AI_API_KEY = "sk-60b6b2dcd29a408d9cf64a54010";
-  const AI_MODEL_NAME = "DeepSeek-V3.2";
-  const AI_TEMPERATURE = 0.3;
+  // ============ Storage Keys ============
+  const K = {
+    NOVEL:     'tnbq_novel_v2',
+    HISTORY:   'tnbq_history_v2',
+    API_URL:   'tnbq_api_url_v2',
+    API_KEY:   'tnbq_api_key_v2',
+    API_MODEL: 'tnbq_api_model_v2',
+  };
+  const DEFAULT_URL   = 'https://api.openai.com/v1/chat/completions';
+  const DEFAULT_MODEL = 'gpt-4o-mini';
 
-  /** @type {HTMLInputElement} */
-  const novelInput = document.getElementById("novelInput");
-  /** @type {HTMLInputElement} */
-  const personInput = document.getElementById("personInput");
-  /** @type {HTMLTextAreaElement} */
-  const snippetInput = document.getElementById("snippetInput");
-  /** @type {HTMLButtonElement} */
-  const queryBtn = document.getElementById("queryBtn");
-  /** @type {HTMLDivElement} */
-  const statusText = document.getElementById("statusText");
-  /** @type {HTMLDivElement} */
-  const resultText = document.getElementById("resultText");
-  /** @type {HTMLInputElement} */
-  const historySearchInput = document.getElementById("historySearchInput");
-  /** @type {HTMLDivElement} */
-  const historyList = document.getElementById("historyList");
+  // ============ Query Fields Definition ============
+  // 5 fields: first 4 shown in 2-col grid, last one full-width
+  const FIELDS = [
+    { key: 'firstAppearance', label: '首次出场' },
+    { key: 'relation',        label: '与主角关系' },
+    { key: 'faction',         label: '阵营' },
+    { key: 'ability',         label: '主要能力' },
+    { key: 'events',          label: '关键事件' },
+  ];
+  const FULL_WIDTH_KEYS = new Set(['events']); // these get full-width display
+
+  // ============ DOM ============
+  const $ = id => document.getElementById(id);
+  const novelInput         = $('novelInput');
+  const personInput        = $('personInput');
+  const snippetInput       = $('snippetInput');
+  const queryBtn           = $('queryBtn');
+  const statusText         = $('statusText');
+  const resultBox          = $('resultBox');
+  const resultName         = $('resultName');
+  const resultNovelTag     = $('resultNovelTag');
+  const resultFields       = $('resultFields');
+  const copyBtn            = $('copyBtn');
+  const historySearchInput = $('historySearchInput');
+  const historyList        = $('historyList');
+  const settingsToggle     = $('settingsToggle');
+  const settingsPanel      = $('settingsPanel');
+  const apiUrlInput        = $('apiUrlInput');
+  const apiKeyInput        = $('apiKeyInput');
+  const apiModelInput      = $('apiModelInput');
+  const saveSettingsBtn    = $('saveSettingsBtn');
+  const settingsSaved      = $('settingsSaved');
+  const exportBtn          = $('exportBtn');
+  const clearAllBtn        = $('clearAllBtn');
 
   let isBusy = false;
+  let lastResult = null; // for copy button
 
-  function nowIso() {
-    return new Date().toISOString();
+  // ============ localStorage helpers ============
+  function lsGet(key) {
+    try { return localStorage.getItem(key) || ''; } catch { return ''; }
   }
-
-  function normalize(str) {
-    return (str || "").trim().toLowerCase();
+  function lsSet(key, val) {
+    try { localStorage.setItem(key, String(val || '')); } catch {}
   }
-
-  function setStatus(text) {
-    statusText.textContent = text || "";
-  }
-
-  function escapeHtml(text) {
-    return (text || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  // ========= 小说名：本地记住，下次自动填 =========
-  function loadNovelName() {
+  function lsGetJson(key) {
     try {
-      return (localStorage.getItem(KEY_NOVEL_NAME) || "").trim();
-    } catch (e) {
-      return "";
-    }
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  function lsSetJson(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
   }
 
-  function saveNovelName(name) {
-    try {
-      localStorage.setItem(KEY_NOVEL_NAME, (name || "").trim());
-    } catch (e) {
-      // 忽略：不影响查询与展示
-    }
+  // ============ Util ============
+  function escHtml(s) {
+    return (s || '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  // ========= 历史记录：纯本地保存 =========
+  function highlight(text, q) {
+    const t = text || '';
+    if (!q) return escHtml(t);
+    const idx = t.toLowerCase().indexOf(q.toLowerCase());
+    if (idx < 0) return escHtml(t);
+    return escHtml(t.slice(0, idx))
+      + `<mark>${escHtml(t.slice(idx, idx + q.length))}</mark>`
+      + escHtml(t.slice(idx + q.length));
+  }
+
+  function setStatus(msg, loading = false) {
+    statusText.textContent = msg;
+    statusText.className = 'status-txt' + (loading ? ' loading' : '');
+  }
+
+  // ============ Settings ============
+  function loadSettings() {
+    apiUrlInput.value   = lsGet(K.API_URL)   || DEFAULT_URL;
+    apiKeyInput.value   = lsGet(K.API_KEY);
+    apiModelInput.value = lsGet(K.API_MODEL) || DEFAULT_MODEL;
+  }
+
+  function saveSettings() {
+    lsSet(K.API_URL,   apiUrlInput.value.trim()   || DEFAULT_URL);
+    lsSet(K.API_KEY,   apiKeyInput.value.trim());
+    lsSet(K.API_MODEL, apiModelInput.value.trim() || DEFAULT_MODEL);
+    settingsSaved.textContent = '✓ 已保存';
+    setTimeout(() => { settingsSaved.textContent = ''; }, 2000);
+  }
+
+  settingsToggle.addEventListener('click', () => {
+    const header = document.getElementById('mainHeader');
+    // Position panel just below the header, accounting for header margin/padding
+    settingsPanel.style.top = (header.offsetHeight + 4) + 'px';
+    const open = settingsPanel.classList.toggle('open');
+    settingsToggle.classList.toggle('active', open);
+  });
+
+  // Close settings panel when clicking outside
+  document.addEventListener('click', e => {
+    if (settingsPanel.classList.contains('open') &&
+        !settingsPanel.contains(e.target) &&
+        !settingsToggle.contains(e.target)) {
+      settingsPanel.classList.remove('open');
+      settingsToggle.classList.remove('active');
+    }
+  });
+  saveSettingsBtn.addEventListener('click', saveSettings);
+
+  // ============ History CRUD ============
   function loadHistory() {
-    try {
-      const raw = localStorage.getItem(KEY_HISTORY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed;
-    } catch (e) {
-      return [];
-    }
+    return lsGetJson(K.HISTORY) || [];
   }
 
-  function saveHistory(list) {
-    try {
-      localStorage.setItem(KEY_HISTORY, JSON.stringify(list));
-    } catch (e) {
-      // 忽略：不影响当前结果展示
-    }
+  function saveHistoryAll(list) {
+    lsSetJson(K.HISTORY, list);
   }
 
   function upsertHistory(item) {
     const list = loadHistory();
-    const key = `${normalize(item.novel)}__${normalize(item.person)}`;
-    const idx = list.findIndex((x) => `${normalize(x.novel)}__${normalize(x.person)}` === key);
+    const key = `${(item.novel||'').trim().toLowerCase()}__${(item.person||'').trim().toLowerCase()}`;
+    const idx = list.findIndex(x =>
+      `${(x.novel||'').trim().toLowerCase()}__${(x.person||'').trim().toLowerCase()}` === key
+    );
+    const now = new Date().toISOString();
     if (idx >= 0) {
-      list[idx] = { ...list[idx], ...item, updatedAt: nowIso() };
+      list[idx] = { ...list[idx], ...item, updatedAt: now };
     } else {
-      list.push({
-        id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
-        createdAt: nowIso(),
-        updatedAt: nowIso(),
+      list.unshift({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        createdAt: now,
+        updatedAt: now,
         ...item,
       });
     }
-    // 最新的放前面
-    list.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
-    saveHistory(list);
+    list.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    saveHistoryAll(list);
   }
 
-  function highlight(text, query) {
-    const t = text || "";
-    const q = (query || "").trim();
-    if (!q) return escapeHtml(t);
-    const lt = t.toLowerCase();
-    const lq = q.toLowerCase();
-    const idx = lt.indexOf(lq);
-    if (idx < 0) return escapeHtml(t);
-    const before = escapeHtml(t.slice(0, idx));
-    const hit = escapeHtml(t.slice(idx, idx + q.length));
-    const after = escapeHtml(t.slice(idx + q.length));
-    return `${before}<mark>${hit}</mark>${after}`;
+  function deleteHistoryById(id) {
+    saveHistoryAll(loadHistory().filter(x => x.id !== id));
   }
 
-  // ========= UI：历史列表渲染 + 点击回填 =========
-  function buildHistoryCard(item, query) {
-    const card = document.createElement("div");
-    card.className = "item-card";
-
-    const header = document.createElement("div");
-    header.className = "item-card__header";
-
-    const nameEl = document.createElement("div");
-    nameEl.className = "item-card__name";
-    nameEl.innerHTML = highlight(item.person, query);
-
-    const badge = document.createElement("div");
-    badge.className = "item-card__badge";
-    badge.textContent = "点击查看";
-
-    header.appendChild(nameEl);
-    header.appendChild(badge);
-
-    const details = document.createElement("div");
-    details.className = "item-card__details";
-    details.innerHTML = `
-      <div class="kv"><b>小说：</b>${escapeHtml(item.novel || "")}</div>
-      ${
-        item.snippet
-          ? `<div class="kv"><b>片段：</b>${escapeHtml(item.snippet)}</div>`
-          : `<div class="kv"><b>片段：</b><span class="muted">（未提供）</span></div>`
-      }
-      <div class="kv"><b>首次出场：</b>${escapeHtml(item.firstAppearance || "")}</div>
-      <div class="kv"><b>与主角关系：</b>${escapeHtml(item.relation || "")}</div>
-      <div class="kv"><b>关键事件：</b>${escapeHtml(item.events || "")}</div>
-    `;
-
-    header.addEventListener("click", () => {
-      // 1) 展开/收起
-      card.classList.toggle("expanded");
-      // 2) 同时把这条记录展示到“结果区”，并回填输入框，方便再次查询
-      novelInput.value = item.novel || "";
-      personInput.value = item.person || "";
-      snippetInput.value = item.snippet || "";
-      saveNovelName(novelInput.value);
-      showResult({
-        novel: item.novel,
-        person: item.person,
-        firstAppearance: item.firstAppearance,
-        relation: item.relation,
-        events: item.events,
-      });
-    });
-
-    card.appendChild(header);
-    card.appendChild(details);
-    return card;
+  // ============ AI Prompt & Parse ============
+  function buildPrompt(novel, person, snippet) {
+    const snippetLine = snippet ? `\n参考片段：${snippet}` : '';
+    const fieldLines  = FIELDS.map(f => `${f.label}：xxx`).join('\n');
+    return `用户正在听有声小说《${novel}》。${snippetLine}\n请查询人物【${person}】，严格只返回以下 ${FIELDS.length} 行，不要多余内容：\n${fieldLines}`;
   }
 
-  function renderHistory() {
-    const q = (historySearchInput.value || "").trim();
-    const list = loadHistory();
-    const lowerQ = q.toLowerCase();
-    const hits = q
-      ? list.filter((x) => {
-          const hay = `${x.novel || ""} ${x.person || ""}`.toLowerCase();
-          return hay.includes(lowerQ);
-        })
-      : list;
-
-    historyList.innerHTML = "";
-    if (hits.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "muted";
-      empty.textContent = q ? "没有匹配的历史记录。" : "暂无历史记录。";
-      historyList.appendChild(empty);
-      return;
-    }
-
-    for (const item of hits) {
-      historyList.appendChild(buildHistoryCard(item, q));
-    }
-  }
-
-  // ========= 结果展示 =========
-  function showResult(r) {
-    const lines = [
-      `首次出场：${r.firstAppearance || ""}`,
-      `与主角关系：${r.relation || ""}`,
-      `关键事件：${r.events || ""}`,
-    ];
-    resultText.classList.remove("muted");
-    resultText.textContent = lines.join("\n");
-  }
-
-  function showEmptyResult() {
-    resultText.classList.add("muted");
-    resultText.textContent = "暂无结果。请输入小说名与人物名后点击“AI查询人物”。";
-  }
-
-  // ========= AI 提示词（固定）+ 解析（严格 3 行） =========
-  function buildAiPrompt(novelName, personName, snippet) {
-    // 在“固定提示词”基础上：若用户提供片段，则作为额外上下文，帮助更精准检索人物信息
-    const s = (snippet || "").trim();
-    const snippetLine = s ? `\n补充片段：${s}` : "";
-    return `用户正在听有声小说《${novelName}》，${snippetLine}\n请你在这部小说中，查询人物【${personName}】的信息，严格只返回3行，不要多余内容：\n首次出场：第xx回\n与主角关系：xxx\n关键事件：xxx`;
-  }
-
-  function parseAi3Lines(text) {
-    const raw = (text || "").trim();
-    if (!raw) throw new Error("EMPTY");
-
-    // 允许模型返回 \r\n 或 \n；同时忽略多余空行，但最终必须恰好 3 行
-    const lines = raw
+  function parseAiResult(text) {
+    const lines = (text || '').trim()
       .split(/\r?\n/)
-      .map((x) => x.trim())
-      .filter((x) => x.length > 0);
+      .map(l => l.trim())
+      .filter(Boolean);
 
-    if (lines.length !== 3) throw new Error("NOT_3_LINES");
-
-    // 支持中文冒号“：”与英文冒号“:”
-    function cutValue(line, prefix) {
-      if (!line.startsWith(prefix)) throw new Error("PREFIX");
-      const idx = line.indexOf("：") >= 0 ? line.indexOf("：") : line.indexOf(":");
-      if (idx < 0) throw new Error("NO_COLON");
-      const v = line.slice(idx + 1).trim();
-      if (!v) throw new Error("EMPTY_VALUE");
-      return v;
+    const result = {};
+    for (const line of lines) {
+      for (const f of FIELDS) {
+        if (line.startsWith(f.label)) {
+          const colon = line.indexOf('：') >= 0 ? line.indexOf('：') : line.indexOf(':');
+          if (colon >= 0) {
+            const val = line.slice(colon + 1).trim();
+            if (val) result[f.key] = val;
+          }
+        }
+      }
     }
-
-    return {
-      firstAppearance: cutValue(lines[0], "首次出场"),
-      relation: cutValue(lines[1], "与主角关系"),
-      events: cutValue(lines[2], "关键事件"),
-      raw: lines.join("\n"),
-    };
+    // Require at least one field to be filled
+    if (Object.keys(result).length === 0) throw new Error('PARSE_FAIL');
+    return result;
   }
 
-  async function callAiApi(novelName, personName, snippet) {
-    // 注意：若出现link dead报错，请检查该API接口的网络连通性
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+  async function callAi(novel, person, snippet) {
+    const url   = lsGet(K.API_URL)   || DEFAULT_URL;
+    const key   = lsGet(K.API_KEY);
+    const model = lsGet(K.API_MODEL) || DEFAULT_MODEL;
+
+    if (!key) throw new Error('NO_KEY');
+
+    const ctrl    = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 20000);
 
     try {
-      const res = await fetch(AI_API_URL, {
-        method: "POST",
+      const res = await fetch(url, {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${AI_API_KEY}`,
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${key}`,
         },
         body: JSON.stringify({
-          model: AI_MODEL_NAME,
-          temperature: AI_TEMPERATURE,
-          messages: [{ role: "user", content: buildAiPrompt(novelName, personName, snippet) }],
+          model,
+          temperature: 0.3,
+          max_tokens:  400,
+          messages: [{ role: 'user', content: buildPrompt(novel, person, snippet) }],
         }),
-        signal: controller.signal,
+        signal: ctrl.signal,
       });
 
       if (!res.ok) throw new Error(`HTTP_${res.status}`);
-      const data = await res.json();
-      const content =
-        data &&
-        data.choices &&
-        data.choices[0] &&
-        data.choices[0].message &&
-        data.choices[0].message.content;
-      if (typeof content !== "string") throw new Error("NO_CONTENT");
+
+      const data    = await res.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (typeof content !== 'string') throw new Error('NO_CONTENT');
       return content;
     } finally {
       clearTimeout(timeout);
     }
   }
 
-  function ensureInputsOrAlert() {
-    const novelName = (novelInput.value || "").trim();
-    const personName = (personInput.value || "").trim();
-    const snippet = (snippetInput.value || "").trim();
-    if (!novelName) {
-      alert("请先输入小说名");
-      return null;
-    }
-    if (!personName) {
-      alert("请先输入人物名");
-      return null;
-    }
-    return { novelName, personName, snippet };
+  // ============ Result Display ============
+  function showResult(data) {
+    resultName.textContent    = data.person || '';
+    resultNovelTag.textContent = `《${data.novel || ''}》`;
+    resultFields.innerHTML    = '';
+
+    FIELDS.forEach(f => {
+      const val  = data[f.key] || '—';
+      const div  = document.createElement('div');
+      div.className = 'res-field' + (FULL_WIDTH_KEYS.has(f.key) ? ' full' : '');
+      div.innerHTML = `<div class="res-key">${escHtml(f.label)}</div>`
+                    + `<div class="res-val">${escHtml(val)}</div>`;
+      resultFields.appendChild(div);
+    });
+
+    resultBox.style.display = '';
+    lastResult = data;
   }
 
-  async function onQueryClick() {
-    if (isBusy) return;
-    const v = ensureInputsOrAlert();
-    if (!v) return;
+  // ============ Copy Button ============
+  copyBtn.addEventListener('click', () => {
+    if (!lastResult) return;
+    const header = `【${lastResult.novel}】${lastResult.person}`;
+    const body   = FIELDS.map(f => `${f.label}：${lastResult[f.key] || '—'}`).join('\n');
+    const text   = `${header}\n${body}`;
 
-    saveNovelName(v.novelName);
-    setStatus("AI 查询中…");
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        const orig = copyBtn.innerHTML;
+        copyBtn.textContent = '✓ 已复制';
+        setTimeout(() => { copyBtn.innerHTML = orig; }, 1800);
+      })
+      .catch(() => { alert('复制失败，请手动选取文字'); });
+  });
+
+  // ============ History Render ============
+  function renderHistory() {
+    const q      = (historySearchInput.value || '').trim();
+    const lq     = q.toLowerCase();
+    const list   = loadHistory();
+    const hits   = q
+      ? list.filter(x => `${x.novel || ''} ${x.person || ''}`.toLowerCase().includes(lq))
+      : list;
+
+    historyList.innerHTML = '';
+
+    if (hits.length === 0) {
+      const el = document.createElement('div');
+      el.className   = 'hist-empty';
+      el.textContent = q ? '没有匹配的记录' : '暂无历史记录';
+      historyList.appendChild(el);
+      return;
+    }
+
+    for (const item of hits) {
+      const card = document.createElement('div');
+      card.className = 'hist-item';
+
+      // Head
+      const head = document.createElement('div');
+      head.className = 'hist-head';
+      head.innerHTML = `
+        <div class="hist-dot"></div>
+        <div class="hist-name">${highlight(item.person, q)}</div>
+        <div class="hist-novel-tag">${highlight(item.novel, q)}</div>
+        <button class="hist-del" title="删除此记录">×</button>
+      `;
+
+      // Body
+      const body = document.createElement('div');
+      body.className = 'hist-body';
+      let bodyHtml = '';
+      if (item.snippet) {
+        bodyHtml += `<div class="hist-kv"><b>片段：</b>${escHtml(item.snippet)}</div>`;
+      }
+      FIELDS.forEach(f => {
+        bodyHtml += `<div class="hist-kv"><b>${escHtml(f.label)}：</b>${escHtml(item[f.key] || '—')}</div>`;
+      });
+      body.innerHTML = bodyHtml;
+
+      // Click head → toggle + backfill
+      head.addEventListener('click', e => {
+        if (e.target.classList.contains('hist-del')) return;
+        card.classList.toggle('open');
+        // backfill inputs
+        novelInput.value   = item.novel   || '';
+        personInput.value  = item.person  || '';
+        snippetInput.value = item.snippet || '';
+        lsSet(K.NOVEL, item.novel || '');
+        showResult(item);
+      });
+
+      // Delete button
+      head.querySelector('.hist-del').addEventListener('click', e => {
+        e.stopPropagation();
+        if (confirm(`删除「${item.person}」的历史记录？`)) {
+          deleteHistoryById(item.id);
+          renderHistory();
+        }
+      });
+
+      card.appendChild(head);
+      card.appendChild(body);
+      historyList.appendChild(card);
+    }
+  }
+
+  // ============ Export ============
+  exportBtn.addEventListener('click', () => {
+    const list = loadHistory();
+    if (list.length === 0) { alert('暂无历史记录可导出'); return; }
+    const lines = list.map(item => {
+      const header = `【${item.novel}】${item.person}`;
+      const body   = FIELDS.map(f => `  ${f.label}：${item[f.key] || '—'}`).join('\n');
+      return `${header}\n${body}`;
+    });
+    const blob = new Blob([lines.join('\n\n')], { type: 'text/plain;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = '听书人物记录.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // ============ Clear All ============
+  clearAllBtn.addEventListener('click', () => {
+    const list = loadHistory();
+    if (list.length === 0) { alert('暂无历史记录'); return; }
+    if (confirm(`确定清空全部 ${list.length} 条历史记录？此操作不可恢复。`)) {
+      saveHistoryAll([]);
+      renderHistory();
+    }
+  });
+
+  // ============ Query ============
+  async function onQuery() {
+    if (isBusy) return;
+
+    const novel   = novelInput.value.trim();
+    const person  = personInput.value.trim();
+    const snippet = snippetInput.value.trim();
+
+    if (!novel)  { alert('请输入小说名'); novelInput.focus();  return; }
+    if (!person) { alert('请输入人物名'); personInput.focus(); return; }
+
+    const apiKey = lsGet(K.API_KEY);
+    if (!apiKey) {
+      const header = document.getElementById('mainHeader');
+      settingsPanel.style.top = (header.offsetHeight + 4) + 'px';
+      settingsPanel.classList.add('open');
+      settingsToggle.classList.add('active');
+      alert('请先在上方"API 设置"中填写 API Key');
+      return;
+    }
+
     isBusy = true;
     queryBtn.disabled = true;
+    setStatus('AI 查询中…', true);
+    lsSet(K.NOVEL, novel);
 
     try {
-      const content = await callAiApi(v.novelName, v.personName, v.snippet);
-      const parsed = parseAi3Lines(content);
+      const content = await callAi(novel, person, snippet);
+      const parsed  = parseAiResult(content);
+      const data    = { novel, person, snippet, ...parsed };
 
-      showResult({
-        novel: v.novelName,
-        person: v.personName,
-        firstAppearance: parsed.firstAppearance,
-        relation: parsed.relation,
-        events: parsed.events,
-      });
-
-      upsertHistory({
-        novel: v.novelName,
-        person: v.personName,
-        snippet: v.snippet,
-        firstAppearance: parsed.firstAppearance,
-        relation: parsed.relation,
-        events: parsed.events,
-        raw: parsed.raw,
-      });
-
+      showResult(data);
+      upsertHistory(data);
       renderHistory();
-      setStatus("完成");
+      setStatus('✓ 查询完成');
+      setTimeout(() => setStatus(''), 2500);
+
     } catch (e) {
-      // 按你要求：失败时给出清晰提示，但不影响其他功能使用
-      alert("AI查询失败：请检查API接口连通性或密钥有效性");
-      setStatus("");
+      let msg = '查询失败';
+      if (e.message === 'NO_KEY')      msg = '未填写 API Key，请先在设置中填写';
+      else if (e.message === 'PARSE_FAIL') msg = 'AI 返回格式异常，请重试';
+      else if (e.name   === 'AbortError')  msg = '请求超时，请检查网络';
+      else if (e.message.startsWith('HTTP_')) msg = `API 错误（${e.message}），请检查 Key 和地址`;
+      alert(msg);
+      setStatus('');
     } finally {
-      isBusy = false;
+      isBusy            = false;
       queryBtn.disabled = false;
     }
   }
 
-  // ========= 事件绑定与初始化 =========
-  novelInput.value = loadNovelName();
-  if (!novelInput.value) {
-    // 没有小说名时保持结果区为空提示
-    showEmptyResult();
-  }
-
-  novelInput.addEventListener("input", () => {
-    // 轻量持久化：用户输入时同步保存，避免忘记
-    saveNovelName(novelInput.value);
+  queryBtn.addEventListener('click', onQuery);
+  personInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') onQuery();
   });
+  historySearchInput.addEventListener('input', renderHistory);
 
-  queryBtn.addEventListener("click", onQueryClick);
-  personInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") onQueryClick();
-  });
-
-  // 片段输入框通常需要换行，这里不绑定 Enter 触发查询，避免误触
-
-  historySearchInput.addEventListener("input", () => renderHistory());
-
-  // 初次渲染历史记录
+  // ============ Init ============
+  loadSettings();
+  novelInput.value = lsGet(K.NOVEL);
   renderHistory();
-})();
 
+})();
