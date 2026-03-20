@@ -1,0 +1,251 @@
+:root {
+  --primary: #007bff;
+  --bg: #f5f8ff;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  --radius: 12px;
+  --space: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 400px;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.app {
+  max-height: 600px;
+  overflow: auto;
+  padding: var(--space);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: calc(var(--space) * 1.5);
+}
+
+.card-soft {
+  background: rgba(0, 123, 255, 0.04);
+  border: 1px solid rgba(0, 123, 255, 0.18);
+  border-radius: var(--radius);
+  padding: calc(var(--space) * 1.5);
+}
+
+.header__title {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--primary);
+  line-height: 1.2;
+}
+
+.header__subtitle {
+  margin-top: var(--space);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.section-title {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: var(--space);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space);
+}
+
+.field__label {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.required {
+  color: #ef4444;
+  margin-left: 4px;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: rgba(0, 123, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  margin-top: var(--space);
+}
+
+.status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 16px;
+}
+
+.btn {
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-faux-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.btn-outline {
+  background: #fff;
+  color: var(--primary);
+  border-color: rgba(0, 123, 255, 0.35);
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: rgba(0, 123, 255, 0.06);
+}
+
+.muted {
+  margin-top: var(--space);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+}
+
+.item-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.item-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  cursor: pointer;
+}
+
+.item-card__name {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.item-card__badge {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--primary);
+}
+
+.item-card__details {
+  display: none;
+  margin-top: var(--space);
+  border-top: 1px dashed var(--border);
+  padding-top: var(--space);
+  font-size: 12px;
+  color: #111827;
+  line-height: 1.45;
+}
+
+.item-card.expanded .item-card__details {
+  display: block;
+}
+
+.kv {
+  margin-top: 6px;
+}
+
+.kv b {
+  color: #334155;
+}
+
+mark {
+  background: rgba(0, 123, 255, 0.18);
+  color: #0f172a;
+  padding: 0 2px;
+  border-radius: 4px;
+}
+
+.result {
+  margin-top: calc(var(--space) * 1.5);
+}
+
+.result__title {
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--primary);
+}
+
+.result__content {
+  margin-top: var(--space);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+

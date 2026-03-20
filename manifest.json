@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "听书人物查询助手",
+  "version": "1.0.0",
+  "description": "输入小说名与人名，一键 AI 查询人物首次出场、与主角关系与关键事件，并本地保存历史记录（localStorage）。",
+  "action": {
+    "default_title": "听书人物查询助手",
+    "default_popup": "index.html"
+  },
+  "host_permissions": ["https://code-api.x-aio.ai/*"]
+}

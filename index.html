@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>听书人物查询助手</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <!-- 标题区 -->
+      <header class="header card">
+        <div class="header__title">听书人物查询助手</div>
+        <div class="header__subtitle">纯本地工具：不读取网页内容，不抓取文本；只用你输入的“小说名 + 人名”去 AI 查询。</div>
+      </header>
+
+      <!-- 查询区 -->
+      <section class="card">
+        <div class="section-title">AI 查询人物</div>
+
+        <div class="form-grid">
+          <label class="field">
+            <div class="field__label">小说名（只需输入一次）<span class="required">*</span></div>
+            <input id="novelInput" class="input" type="text" placeholder="例如：诡秘之主" />
+          </label>
+
+          <label class="field">
+            <div class="field__label">人物名<span class="required">*</span></div>
+            <input id="personInput" class="input" type="text" placeholder="例如：克莱恩" />
+          </label>
+
+          <label class="field">
+            <div class="field__label">片段（可选，用于更精准检索）</div>
+            <textarea
+              id="snippetInput"
+              class="textarea"
+              rows="3"
+              placeholder="可粘贴你听到的关键句/情节片段（可不填）"
+            ></textarea>
+          </label>
+        </div>
+
+        <div class="row">
+          <button id="queryBtn" class="btn btn-primary" type="button">AI查询人物</button>
+          <div class="status" id="statusText" aria-live="polite"></div>
+        </div>
+
+        <div class="result card-soft" id="resultBox">
+          <div class="result__title">结果</div>
+          <div class="result__content muted" id="resultText">暂无结果。请输入小说名与人物名后点击“AI查询人物”。</div>
+        </div>
+      </section>
+
+      <!-- 历史记录 -->
+      <section class="card">
+        <div class="section-title">历史记录（可搜索）</div>
+
+        <div class="row">
+          <input id="historySearchInput" class="input" type="text" placeholder="搜索：小说名 / 人物名（忽略大小写）" />
+        </div>
+        <div class="list" id="historyList"></div>
+      </section>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
+
