@@ -1,144 +1,135 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>听书人物查询</title>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <!-- 最外层：固定尺寸，相对定位作为设置浮层的锚点 -->
-    <div class="page">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>听书人物查询</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page" id="page">
 
-      <!-- Header（不在可滚动区内） -->
-      <header class="header" id="mainHeader">
-        <div class="header-left">
-          <span class="header-icon">📖</span>
-          <div>
-            <div class="header-title">听书人物查询</div>
-            <div class="header-sub">输入小说名＋人名，AI 即时查询</div>
-          </div>
-        </div>
-        <button class="gear-btn" id="settingsToggle" title="API 设置">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        </button>
-      </header>
+  <!-- Header -->
+  <header class="header" id="header">
+    <div class="header-left">
+      <span class="header-icon">📖</span>
+      <div>
+        <div class="header-title">听书人物查询</div>
+        <div class="header-sub">小说名 + 人名，AI 即时查询</div>
+      </div>
+    </div>
+    <button class="icon-btn" id="btnSettings" title="API 设置">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </header>
 
-      <!-- 设置浮层：绝对定位，不受 .app 的 overflow 裁剪 -->
-      <div class="settings-wrap" id="settingsPanel">
-        <div class="settings-inner">
-          <div class="panel-title">⚙️ API 设置</div>
-          <label class="field">
-            <span class="field-label">API 地址（OpenAI 兼容）</span>
-            <input id="apiUrlInput" class="input" type="text"
-              placeholder="https://api.openai.com/v1/chat/completions" />
-          </label>
-          <label class="field">
-            <span class="field-label">API Key <em class="req">*</em></span>
-            <input id="apiKeyInput" class="input" type="password"
-              placeholder="sk-..." autocomplete="off" />
-          </label>
-          <label class="field">
-            <span class="field-label">模型名称</span>
-            <input id="apiModelInput" class="input" type="text"
-              placeholder="gpt-4o-mini / claude-3-haiku / deepseek-chat …" />
-          </label>
-          <div class="settings-foot">
-            <button id="saveSettingsBtn" class="btn btn-primary">保存设置</button>
-            <span id="settingsSaved" class="saved-hint"></span>
-          </div>
-        </div>
+  <!-- Settings overlay -->
+  <div class="overlay-panel" id="panelSettings">
+    <div class="panel-body">
+      <div class="panel-title">⚙️ API 设置</div>
+      <label class="field">
+        <span class="field-label">API 地址</span>
+        <input id="cfgUrl" class="inp" type="text" placeholder="例：https://api.openai.com/v1/chat/completions">
+      </label>
+      <label class="field">
+        <span class="field-label">API Key</span>
+        <input id="cfgKey" class="inp" type="password" placeholder="sk-..." autocomplete="off">
+      </label>
+      <label class="field">
+        <span class="field-label">模型名称</span>
+        <input id="cfgModel" class="inp" type="text" placeholder="gpt-4o-mini / deepseek-chat / …">
+      </label>
+      <div class="panel-footer">
+        <button class="btn btn-primary" id="btnSaveSettings">保存</button>
+        <span class="save-ok" id="saveOk"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main scroll area -->
+  <div class="scroll" id="scroll">
+
+    <!-- Query card -->
+    <div class="card">
+      <div class="card-title">🔍 查询人物</div>
+      <div class="fields">
+        <label class="field">
+          <span class="field-label">小说名 <em class="req">*</em></span>
+          <input id="inpNovel" class="inp" type="text" placeholder="例：诡秘之主">
+        </label>
+        <label class="field">
+          <span class="field-label">人物名 <span class="opt">（不知道可留空）</span></span>
+          <input id="inpPerson" class="inp" type="text" placeholder="例：克莱恩">
+        </label>
+        <label class="field">
+          <span class="field-label">描述 / 片段 <span class="opt">（留空人名时必填）</span></span>
+          <textarea id="inpSnippet" class="inp inp-ta" rows="2" placeholder="描述你听到的情节或人物特征，AI 自动识别是谁…"></textarea>
+        </label>
+      </div>
+      <div class="query-bar">
+        <button class="btn btn-primary" id="btnQuery">AI 查询</button>
+        <span class="status" id="status"></span>
       </div>
 
-      <!-- 可滚动主体区 -->
-      <div class="app">
-
-      <!-- Query Section -->
-      <section class="card">
-        <div class="card-title">🔍 查询人物</div>
-        <div class="fields">
-          <label class="field">
-            <span class="field-label">小说名 <em class="req">*</em></span>
-            <input id="novelInput" class="input" type="text" placeholder="例：诡秘之主" />
-          </label>
-          <label class="field">
-            <span class="field-label">人物名 <span class="optional">（可选，不知道可留空）</span></span>
-            <input id="personInput" class="input" type="text" placeholder="例：克莱恩（不知道可留空）" />
-          </label>
-          <label class="field">
-            <span class="field-label">情节片段
-              <span class="optional">（可选，帮助更精准定位）</span>
-            </span>
-            <textarea id="snippetInput" class="textarea" rows="2"
-              placeholder="不知道人名时，在此描述特征或情节，AI 自动识别…"></textarea>
-          </label>
-        </div>
-        <div class="query-row">
-          <button id="queryBtn" class="btn btn-primary">AI 查询</button>
-          <span class="status-txt" id="statusText"></span>
-        </div>
-
-        <!-- Result -->
-        <div class="result-box" id="resultBox" style="display:none">
-          <div class="result-head">
-            <div class="result-identity">
-              <span class="result-name" id="resultName"></span>
-              <span class="result-tag" id="resultNovelTag"></span>
-            </div>
-            <div style="display:flex;gap:6px;">
-              <button class="copy-btn" id="graphBtn">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                关系图谱
-              </button>
-              <button class="copy-btn" id="copyBtn">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2.2">
-                  <rect x="9" y="9" width="13" height="13" rx="2"/>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                </svg>
-                复制
-              </button>
-            </div>
+      <!-- Result -->
+      <div id="result" class="result" style="display:none">
+        <div class="result-head">
+          <div class="result-ident">
+            <span class="result-name" id="rName"></span>
+            <span class="result-novel" id="rNovel"></span>
           </div>
-          <div class="result-fields" id="resultFields"></div>
-        </div>
-      </section>
-
-      <!-- History Section -->
-      <section class="card">
-        <div class="card-title-row">
-          <div class="card-title">📚 历史记录</div>
-          <div class="hist-actions">
-            <button class="btn btn-sm btn-outline" id="exportBtn">导出</button>
-            <button class="btn btn-sm btn-danger-ghost" id="clearAllBtn">清空</button>
+          <div class="result-btns">
+            <button class="ghost-btn" id="btnGraph">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+              图谱
+            </button>
+            <button class="ghost-btn" id="btnCopy">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              复制
+            </button>
           </div>
         </div>
-        <input id="historySearchInput" class="input"
-          type="text" placeholder="搜索小说名 / 人物名…" />
-        <div id="historyList" class="hist-list"></div>
-      </section>
+        <div class="result-grid" id="rGrid"></div>
+      </div>
+    </div>
 
-      </div><!-- /.app -->
-
-      <!-- 关系图谱弹窗 -->
-      <div class="graph-modal" id="graphModal">
-        <div class="graph-panel">
-          <div class="graph-header">
-            <span class="graph-title" id="graphTitle">人物关系图谱</span>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <span class="graph-hint">可拖拽节点</span>
-              <button class="graph-close" id="graphClose">×</button>
-            </div>
-          </div>
-          <div class="graph-loading" id="graphLoading">
-            <div class="graph-spinner"></div>
-            <div>AI 生成关系数据中…</div>
-          </div>
-          <canvas id="graphCanvas" class="graph-canvas"></canvas>
+    <!-- History card -->
+    <div class="card">
+      <div class="card-title-row">
+        <div class="card-title">📚 历史记录</div>
+        <div class="row-btns">
+          <button class="btn btn-sm btn-outline" id="btnExport">导出</button>
+          <button class="btn btn-sm btn-ghost-danger" id="btnClearAll">清空</button>
         </div>
       </div>
+      <input id="inpSearch" class="inp" type="text" placeholder="搜索小说名 / 人物名…">
+      <div id="histList" class="hist-list"></div>
+    </div>
 
-    </div><!-- /.page -->
-    <script src="script.js"></script>
-  </body>
+  </div><!-- /scroll -->
+
+  <!-- Graph modal -->
+  <div class="modal" id="modalGraph">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span class="modal-title" id="graphTitle">关系图谱</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="modal-hint">可拖拽节点</span>
+          <button class="close-btn" id="btnCloseGraph">×</button>
+        </div>
+      </div>
+      <div class="graph-loading" id="graphLoading">
+        <div class="spinner"></div>
+        <span>AI 生成中…</span>
+      </div>
+      <canvas id="graphCanvas" class="graph-canvas"></canvas>
+    </div>
+  </div>
+
+</div><!-- /page -->
+<script src="script.js"></script>
+</body>
 </html>

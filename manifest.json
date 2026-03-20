@@ -1,18 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "听书人物查询助手",
-  "version": "2.0.0",
-  "description": "输入小说名与人名，一键 AI 查询人物首次出场、阵营、能力、关键事件等，支持自定义 API Key，历史记录本地保存。",
+  "name": "听书人物查询",
+  "version": "3.0.0",
+  "description": "输入小说名和人名，AI 即时查询人物信息，支持关系图谱与历史记录。",
   "action": {
-    "default_title": "听书人物查询助手",
+    "default_title": "听书人物查询",
     "default_popup": "index.html"
   },
-  "permissions": [
-    "clipboardWrite"
-  ],
-  "host_permissions": [
-    "https://*/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
-  ]
+  "permissions": ["clipboardWrite"],
+  "host_permissions": ["https://*/*", "http://*/*"]
 }
