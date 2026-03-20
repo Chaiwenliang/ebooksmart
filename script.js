@@ -315,6 +315,7 @@
         snippetInput.value = item.snippet || '';
         lsSet(K.NOVEL, item.novel || '');
         showResult(item);
+        window._lastQueryResult = item;  // expose for graph feature
       });
 
       // Delete button
@@ -394,6 +395,7 @@
       const data    = { novel, person, snippet, ...parsed };
 
       showResult(data);
+      window._lastQueryResult = data;   // expose for graph feature
       upsertHistory(data);
       renderHistory();
       setStatus('✓ 查询完成');
@@ -424,4 +426,309 @@
   novelInput.value = lsGet(K.NOVEL);
   renderHistory();
 
+})();
+
+// ============ Graph Feature ============
+(function() {
+  const graphBtn    = document.getElementById('graphBtn');
+  const graphModal  = document.getElementById('graphModal');
+  const graphClose  = document.getElementById('graphClose');
+  const graphTitle  = document.getElementById('graphTitle');
+  const graphLoading= document.getElementById('graphLoading');
+  const graphCanvas = document.getElementById('graphCanvas');
+
+  const lsGet = k => { try { return localStorage.getItem(k)||''; } catch{return '';} };
+  const K_URL   = 'tnbq_api_url_v2';
+  const K_KEY   = 'tnbq_api_key_v2';
+  const K_MODEL = 'tnbq_api_model_v2';
+
+  // Role → color mapping
+  const ROLE_COLORS = {
+    '主角':   '#8b4513',
+    '伙伴':   '#2e7d32',
+    '盟友':   '#1565c0',
+    '对手':   '#b71c1c',
+    '中立':   '#6a1e8a',
+    '家人':   '#e65100',
+    'default':'#546e7a',
+  };
+  function roleColor(role) {
+    for (const [k,v] of Object.entries(ROLE_COLORS)) {
+      if (role && role.includes(k)) return v;
+    }
+    return ROLE_COLORS.default;
+  }
+
+  // ---- AI call for graph data ----
+  async function fetchGraphData(novel, person) {
+    const url   = lsGet(K_URL)   || 'https://api.openai.com/v1/chat/completions';
+    const key   = lsGet(K_KEY);
+    const model = lsGet(K_MODEL) || 'gpt-4o-mini';
+    if (!key) throw new Error('NO_KEY');
+
+    const prompt = `小说《${novel}》中，以【${person}】为中心，列出该人物的主要关系网络。
+严格只返回如下 JSON，不要多余文字、不要代码块：
+{"nodes":[{"id":"人名","role":"与${person}的关系(5字内)"}],"edges":[{"from":"人名A","to":"人名B","label":"关系(4字内)"}]}
+要求：
+1. nodes 包含 ${person} 本人（role用"主角"）以及 4~8 个相关人物
+2. edges 描述节点间的关系，每对节点最多一条边
+3. 人名保持原著写法`;
+
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${key}` },
+        body: JSON.stringify({ model, temperature: 0.2, max_tokens: 600,
+          messages: [{ role:'user', content: prompt }] }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error(`HTTP_${res.status}`);
+      const data = await res.json();
+      let content = data?.choices?.[0]?.message?.content || '';
+      // Strip markdown code fences if present
+      content = content.replace(/```json|```/g,'').trim();
+      return JSON.parse(content);
+    } finally { clearTimeout(t); }
+  }
+
+  // ---- Force-directed graph ----
+  let nodes=[], edges=[], animFrame=null, dragging=null, dragOffX=0, dragOffY=0;
+
+  function initForce(data, centerPerson) {
+    const W = graphCanvas.width, H = graphCanvas.height;
+    // Place center node in middle, others randomly around
+    nodes = data.nodes.map((n, i) => {
+      const isCenter = n.id === centerPerson;
+      const angle = (i / data.nodes.length) * Math.PI * 2;
+      const r = isCenter ? 0 : 100 + Math.random() * 40;
+      return {
+        id: n.id, role: n.role || '',
+        x: W/2 + (isCenter ? 0 : Math.cos(angle)*r),
+        y: H/2 + (isCenter ? 0 : Math.sin(angle)*r),
+        vx: 0, vy: 0,
+        isCenter,
+      };
+    });
+    edges = data.edges.map(e => ({ from: e.from, to: e.to, label: e.label || '' }));
+  }
+
+  function tick() {
+    const W = graphCanvas.width, H = graphCanvas.height;
+    const k = 80; // spring length
+
+    // Repulsion between all node pairs
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i+1; j < nodes.length; j++) {
+        const dx = nodes[j].x - nodes[i].x;
+        const dy = nodes[j].y - nodes[i].y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const force = 3200 / (dist * dist);
+        const fx = (dx/dist) * force;
+        const fy = (dy/dist) * force;
+        nodes[i].vx -= fx; nodes[i].vy -= fy;
+        nodes[j].vx += fx; nodes[j].vy += fy;
+      }
+    }
+
+    // Spring attraction along edges
+    for (const e of edges) {
+      const a = nodes.find(n => n.id === e.from);
+      const b = nodes.find(n => n.id === e.to);
+      if (!a || !b) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+      const force = (dist - k) * 0.04;
+      const fx = (dx/dist)*force, fy = (dy/dist)*force;
+      a.vx += fx; a.vy += fy;
+      b.vx -= fx; b.vy -= fy;
+    }
+
+    // Gravity toward center
+    for (const n of nodes) {
+      n.vx += (W/2 - n.x) * 0.008;
+      n.vy += (H/2 - n.y) * 0.008;
+    }
+
+    // Integrate + dampen + clamp
+    const PAD = 38;
+    for (const n of nodes) {
+      if (dragging && n.id === dragging) continue;
+      n.vx *= 0.78; n.vy *= 0.78;
+      n.x = Math.max(PAD, Math.min(W-PAD, n.x + n.vx));
+      n.y = Math.max(PAD, Math.min(H-PAD, n.y + n.vy));
+    }
+  }
+
+  function draw() {
+    const ctx = graphCanvas.getContext('2d');
+    const W = graphCanvas.width, H = graphCanvas.height;
+    ctx.clearRect(0,0,W,H);
+
+    // Background
+    ctx.fillStyle = '#fdf9f4';
+    ctx.fillRect(0,0,W,H);
+
+    // Draw edges
+    for (const e of edges) {
+      const a = nodes.find(n=>n.id===e.from);
+      const b = nodes.find(n=>n.id===e.to);
+      if (!a||!b) continue;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = '#ddd0bc';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Edge label at midpoint
+      if (e.label) {
+        const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+        ctx.font = '10px PingFang SC, sans-serif';
+        const tw = ctx.measureText(e.label).width;
+        ctx.fillStyle = 'rgba(253,249,244,0.88)';
+        ctx.fillRect(mx - tw/2 - 3, my - 8, tw + 6, 14);
+        ctx.fillStyle = '#5a3e28';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(e.label, mx, my);
+      }
+    }
+
+    // Draw nodes
+    for (const n of nodes) {
+      const R = n.isCenter ? 26 : 20;
+      const color = roleColor(n.role);
+
+      // Shadow
+      ctx.shadowColor = 'rgba(100,55,10,0.18)';
+      ctx.shadowBlur = 8;
+
+      // Circle
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, R, 0, Math.PI*2);
+      ctx.fillStyle = n.isCenter ? color : color + 'dd';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = n.isCenter ? 3 : 2;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Name
+      ctx.font = `${n.isCenter ? 'bold ' : ''}${n.isCenter ? 12 : 11}px PingFang SC, sans-serif`;
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Truncate if long
+      let label = n.id.length > 4 ? n.id.slice(0,4)+'…' : n.id;
+      ctx.fillText(label, n.x, n.y);
+
+      // Role tag below
+      if (n.role) {
+        ctx.font = '9px PingFang SC, sans-serif';
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(n.role, n.x, n.y + R + 3);
+      }
+    }
+  }
+
+  function loop() {
+    tick(); draw();
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  function stopLoop() {
+    if (animFrame) { cancelAnimationFrame(animFrame); animFrame = null; }
+  }
+
+  function nodeAt(x, y) {
+    for (const n of nodes) {
+      const R = n.isCenter ? 26 : 20;
+      const dx = n.x-x, dy = n.y-y;
+      if (dx*dx+dy*dy <= R*R) return n;
+    }
+    return null;
+  }
+
+  // Canvas drag
+  graphCanvas.addEventListener('mousedown', e => {
+    const rect = graphCanvas.getBoundingClientRect();
+    const scaleX = graphCanvas.width / rect.width;
+    const scaleY = graphCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top)  * scaleY;
+    const n = nodeAt(x,y);
+    if (n) { dragging = n.id; dragOffX = n.x-x; dragOffY = n.y-y; }
+  });
+  graphCanvas.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const rect = graphCanvas.getBoundingClientRect();
+    const scaleX = graphCanvas.width / rect.width;
+    const scaleY = graphCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top)  * scaleY;
+    const n = nodes.find(nd => nd.id === dragging);
+    if (n) { n.x = x+dragOffX; n.y = y+dragOffY; n.vx=0; n.vy=0; }
+  });
+  graphCanvas.addEventListener('mouseup',   () => { dragging = null; });
+  graphCanvas.addEventListener('mouseleave',() => { dragging = null; });
+
+  // Touch drag
+  graphCanvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    const rect = graphCanvas.getBoundingClientRect();
+    const x = (t.clientX-rect.left)*(graphCanvas.width/rect.width);
+    const y = (t.clientY-rect.top) *(graphCanvas.height/rect.height);
+    const n = nodeAt(x,y);
+    if (n) { dragging=n.id; dragOffX=n.x-x; dragOffY=n.y-y; }
+  }, {passive:false});
+  graphCanvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (!dragging) return;
+    const t = e.touches[0];
+    const rect = graphCanvas.getBoundingClientRect();
+    const x = (t.clientX-rect.left)*(graphCanvas.width/rect.width);
+    const y = (t.clientY-rect.top) *(graphCanvas.height/rect.height);
+    const n = nodes.find(nd=>nd.id===dragging);
+    if (n) { n.x=x+dragOffX; n.y=y+dragOffY; n.vx=0; n.vy=0; }
+  }, {passive:false});
+  graphCanvas.addEventListener('touchend', () => { dragging=null; });
+
+  // ---- Open/close modal ----
+  function openGraph() {
+    if (!window._lastQueryResult) { alert('请先查询一个人物'); return; }
+    const { novel, person } = window._lastQueryResult;
+
+    graphTitle.textContent = `《${novel}》· ${person} 关系图谱`;
+    graphLoading.style.display = 'flex';
+    graphCanvas.style.display  = 'none';
+    graphModal.classList.add('open');
+
+    fetchGraphData(novel, person).then(data => {
+      // Set canvas physical size
+      graphCanvas.width  = 370;
+      graphCanvas.height = 440;
+      initForce(data, person);
+      graphLoading.style.display = 'none';
+      graphCanvas.style.display  = 'block';
+      stopLoop(); loop();
+    }).catch(err => {
+      graphLoading.innerHTML = `<div style="color:#b83232;font-size:12px;">生成失败：${err.message}<br>请检查 API 设置</div>`;
+    });
+  }
+
+  function closeGraph() {
+    graphModal.classList.remove('open');
+    stopLoop();
+  }
+
+  if (graphBtn)   graphBtn.addEventListener('click', openGraph);
+  if (graphClose) graphClose.addEventListener('click', closeGraph);
+  graphModal.addEventListener('click', e => {
+    if (e.target === graphModal) closeGraph();
+  });
 })();

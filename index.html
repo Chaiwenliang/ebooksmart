@@ -85,14 +85,20 @@
               <span class="result-name" id="resultName"></span>
               <span class="result-tag" id="resultNovelTag"></span>
             </div>
-            <button class="copy-btn" id="copyBtn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2.2">
-                <rect x="9" y="9" width="13" height="13" rx="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-              复制
-            </button>
+            <div style="display:flex;gap:6px;">
+              <button class="copy-btn" id="graphBtn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                关系图谱
+              </button>
+              <button class="copy-btn" id="copyBtn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2.2">
+                  <rect x="9" y="9" width="13" height="13" rx="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+                复制
+              </button>
+            </div>
           </div>
           <div class="result-fields" id="resultFields"></div>
         </div>
@@ -113,6 +119,25 @@
       </section>
 
       </div><!-- /.app -->
+
+      <!-- 关系图谱弹窗 -->
+      <div class="graph-modal" id="graphModal">
+        <div class="graph-panel">
+          <div class="graph-header">
+            <span class="graph-title" id="graphTitle">人物关系图谱</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <span class="graph-hint">可拖拽节点</span>
+              <button class="graph-close" id="graphClose">×</button>
+            </div>
+          </div>
+          <div class="graph-loading" id="graphLoading">
+            <div class="graph-spinner"></div>
+            <div>AI 生成关系数据中…</div>
+          </div>
+          <canvas id="graphCanvas" class="graph-canvas"></canvas>
+        </div>
+      </div>
+
     </div><!-- /.page -->
     <script src="script.js"></script>
   </body>

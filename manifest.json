@@ -7,6 +7,12 @@
     "default_title": "听书人物查询助手",
     "default_popup": "index.html"
   },
-  "permissions": ["clipboardWrite"],
-  "host_permissions": ["https://*/*"]
+  "permissions": [
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ]
 }
